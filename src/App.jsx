@@ -4,7 +4,7 @@ import Home from "./pages/Home";
 import Surahs from "./pages/Surahs";
 import Hadiths from "./pages/Hadith";   // <-- поправили путь
 import Duas from "./pages/Duas";
-import Tajwid from "./pages/tajwid";       // убедись, что файл называется Tajwid.jsx
+import Tajwid from "./pages/tajwid";
 import Quran from "./pages/Quran";
 import { motion } from "framer-motion";
 
@@ -13,22 +13,25 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-black text-white font-sans">
       <Router>
-        <div className="flex min-h-screen">
-          {/* Sidebar */}
-          <div className="w-60 bg-gradient-to-b from-purple-800 to-black p-6 shadow-lg">
-            <h1 className="text-2xl font-bold mb-8 text-center text-pink-400">تطبيق إسلامي</h1>
-            <nav className="space-y-4 text-lg">
-              <Link to="/" className="block hover:text-pink-400 transition">🏠 الرئيسية</Link>
-              <Link to="/Surahs" className="block hover:text-pink-400 transition">📖 السور</Link>
-              <Link to="/Hadiths" className="block hover:text-pink-400 transition">🕋 حديث</Link>
-              <Link to="/Duas" className="block hover:text-pink-400 transition">🙏 دعاء</Link>
-              <Link to="/tajwid" className="block hover:text-pink-400 transition">🗣 التجويد</Link>
-              <Link to="/quran" className="block hover:text-pink-400 transition">📖 القرآن الكريم</Link>
-            </nav>
-          </div>
+        <div className="flex flex-col min-h-screen">
+          {/* Top Header */}
+          <header className="w-full bg-gradient-to-r from-purple-800 via-purple-700 to-indigo-800 shadow-md">
+            <div className="max-w-7xl mx-auto flex items-center justify-between py-4 px-6">
+              <h1 className="text-3xl font-extrabold text-white tracking-wide">تطبيق إسلامي</h1>
+
+              <nav className="flex items-center gap-6 text-lg text-white">
+                <Link to="/" className="hover:text-pink-300 transition flex items-center gap-2">🏠 <span className="hidden md:inline">الرئيسية</span></Link>
+                <Link to="/Surahs" className="hover:text-pink-300 transition flex items-center gap-2">📖 <span className="hidden md:inline">السور</span></Link>
+                <Link to="/Hadiths" className="hover:text-pink-300 transition flex items-center gap-2">🕋 <span className="hidden md:inline">حديث</span></Link>
+                <Link to="/Duas" className="hover:text-pink-300 transition flex items-center gap-2">🙏 <span className="hidden md:inline">دعاء</span></Link>
+                <Link to="/tajwid" className="hover:text-pink-300 transition flex items-center gap-2">🗣 <span className="hidden md:inline">التجويد</span></Link>
+                <Link to="/quran" className="hover:text-pink-300 transition flex items-center gap-2">📖 <span className="hidden md:inline">القرآن الكريم</span></Link>
+              </nav>
+            </div>
+          </header>
 
           {/* Main Content */}
-          <div className="flex-1 p-6 overflow-y-auto">
+          <main className="flex-1 p-6 overflow-y-auto">
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/Surahs" element={<Surahs />} />
@@ -37,7 +40,7 @@ export default function App() {
               <Route path="/tajwid" element={<Tajwid />} />
               <Route path="/quran" element={<Quran />} />
             </Routes>
-          </div>
+          </main>
         </div>
       </Router>
     </div>

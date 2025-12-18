@@ -1,5 +1,25 @@
 import React, { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Search, 
+  Play, 
+  Pause, 
+  Volume2, 
+  SkipBack, 
+  SkipForward,
+  Music,
+  ListMusic,
+  Clock,
+  ChevronRight,
+  Filter,
+  Heart,
+  Download,
+  Share2,
+  Repeat,
+  Shuffle,
+  Moon,
+  Star
+} from "lucide-react";
 
 const surahs = [
   { id: 0, name: "Azan", audio: "/audio/azan.mp3", description: "call to prayer." },
@@ -119,14 +139,44 @@ const surahs = [
   { id: 114, name: "An-Nas", audio: "/audio/Nas.mp3", description: "Surah An-Nas, emphasizing God's oneness." },
 ];
 
+const surahCategories = [
+  { id: "all", name: "Все суры", icon: <ListMusic size={18} /> },
+  { id: "makki", name: "Макканские", icon: <Moon size={18} /> },
+  { id: "madani", name: "Мединские", icon: <Star size={18} /> },
+  { id: "short", name: "Короткие", icon: <Clock size={18} /> },
+];
 
- export default function Surahs() {
+export default function Surahs() {
   const audioRef = useRef(null);
   const [currentSurah, setCurrentSurah] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState("all");
+  const [isShuffle, setIsShuffle] = useState(false);
+  const [isRepeat, setIsRepeat] = useState(false);
 
+  // Фильтрация сур
+  const filteredSurahs = surahs.filter(surah => {
+    const matchesSearch = 
+      surah.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      surah.description.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (activeCategory === "all") return matchesSearch;
+    
+    // Простая логика категорий
+    const categories = {
+      makki: [50, 51, 52, 53, 54, 55, 56, 67, 68, 69, 70, 71, 72, 73, 74, 75, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114],
+      madani: [2, 3, 4, 5, 8, 9, 22, 24, 33, 47, 48, 49, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 76, 98, 99],
+      short: [1, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114]
+    };
+    
+    return matchesSearch && categories[activeCategory]?.includes(surah.id);
+  });
+
+  // Эффекты для аудио
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -139,9 +189,12 @@ const surahs = [
       setDuration(0);
 
       if (isPlaying) {
-        audio.play().catch((err) =>
-          console.warn("Автовоспроизведение заблокировано:", err)
-        );
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.warn("Автовоспроизведение заблокировано:", err);
+          });
+        }
       }
     }
   }, [currentSurah]);
@@ -150,15 +203,26 @@ const surahs = [
     const audio = audioRef.current;
     if (!audio) return;
 
+    audio.volume = volume;
+  }, [volume]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
     if (isPlaying) {
-      audio.play().catch((err) =>
-        console.warn("Ошибка воспроизведения:", err)
-      );
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn("Ошибка воспроизведения:", err);
+        });
+      }
     } else {
       audio.pause();
     }
   }, [isPlaying]);
 
+  // Обработчики аудио
   const handleTimeUpdate = () => {
     const audio = audioRef.current;
     if (audio) setProgress(audio.currentTime);
@@ -178,11 +242,23 @@ const surahs = [
     }
   };
 
-  const handleEnded = () => {
-    setIsPlaying(false);
-    setProgress(0);
+  const handleVolumeChange = (e) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
   };
 
+  const handleEnded = () => {
+    if (isRepeat) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play();
+    } else if (isShuffle) {
+      playRandomSurah();
+    } else {
+      playNextSurah();
+    }
+  };
+
+  // Управление воспроизведением
   const handleSelect = (surah) => {
     if (currentSurah?.id === surah.id) {
       setIsPlaying(!isPlaying);
@@ -192,6 +268,26 @@ const surahs = [
     }
   };
 
+  const playNextSurah = () => {
+    const currentIndex = filteredSurahs.findIndex(s => s.id === currentSurah?.id);
+    const nextIndex = (currentIndex + 1) % filteredSurahs.length;
+    setCurrentSurah(filteredSurahs[nextIndex]);
+    setIsPlaying(true);
+  };
+
+  const playPrevSurah = () => {
+    const currentIndex = filteredSurahs.findIndex(s => s.id === currentSurah?.id);
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : filteredSurahs.length - 1;
+    setCurrentSurah(filteredSurahs[prevIndex]);
+    setIsPlaying(true);
+  };
+
+  const playRandomSurah = () => {
+    const randomIndex = Math.floor(Math.random() * filteredSurahs.length);
+    setCurrentSurah(filteredSurahs[randomIndex]);
+    setIsPlaying(true);
+  };
+
   const formatTime = (seconds) => {
     if (!seconds || isNaN(seconds)) return "0:00";
     const mins = Math.floor(seconds / 60);
@@ -199,90 +295,900 @@ const surahs = [
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.03,
+        delayChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20, scale: 0.96 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: {
+        type: "spring",
+        stiffness: 120,
+        damping: 18
+      }
+    },
+    hover: {
+      y: -4,
+      scale: 1.02,
+      boxShadow: "0 20px 40px -12px rgba(29, 185, 84, 0.25)",
+      transition: {
+        type: "spring",
+        stiffness: 400,
+        damping: 25
+      }
+    }
+  };
+
   return (
     <div
       style={{
-        maxWidth: 600,
-        margin: "40px auto",
-        color: "#eee",
-        backgroundColor: "#121212",
-        padding: 20,
-        borderRadius: 8,
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        color: "#f1f5f9",
+        position: "relative",
+        overflow: "hidden",
+        padding: "40px 20px",
       }}
     >
-      <h1 style={{ textAlign: "center" }}>📖 Quran Surahs - سور القرآن</h1>
+      {/* Декоративные элементы */}
+      <div style={{
+        position: "absolute",
+        top: "-10%",
+        right: "-10%",
+        width: "500px",
+        height: "500px",
+        background: "radial-gradient(circle, rgba(29, 185, 84, 0.1) 0%, transparent 70%)",
+        borderRadius: "50%",
+        filter: "blur(60px)",
+      }} />
+      
+      <div style={{
+        position: "absolute",
+        bottom: "-20%",
+        left: "-10%",
+        width: "600px",
+        height: "600px",
+        background: "radial-gradient(circle, rgba(34, 211, 238, 0.08) 0%, transparent 70%)",
+        borderRadius: "50%",
+        filter: "blur(80px)",
+      }} />
 
-      {surahs.map((surah) => (
-        <div
-          key={surah.id}
-          onClick={() => handleSelect(surah)}
+      <div
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          position: "relative",
+          zIndex: 10,
+        }}
+      >
+        {/* Заголовок */}
+        <motion.header
+          initial={{ opacity: 0, y: -30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, type: "spring" }}
           style={{
-            padding: 10,
-            marginBottom: 10,
-            backgroundColor:
-              currentSurah?.id === surah.id ? "#1db954" : "#222",
-            borderRadius: 6,
-            cursor: "pointer",
+            textAlign: "center",
+            marginBottom: "50px",
+            padding: "0 20px",
           }}
         >
-          <h3 style={{ margin: 0 }}>{surah.name}</h3>
-          <p style={{ margin: 0, fontSize: 13, color: "#ccc" }}>
-            {surah.description}
+          <div style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "12px",
+            background: "rgba(255, 255, 255, 0.05)",
+            backdropFilter: "blur(10px)",
+            padding: "14px 28px",
+            borderRadius: "50px",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            marginBottom: "30px",
+          }}>
+            <Music size={18} color="#1db954" />
+            <span style={{
+              fontSize: "14px",
+              fontWeight: "600",
+              letterSpacing: "1px",
+              color: "#94a3b8",
+              textTransform: "uppercase",
+            }}>
+              Holy Quran Audio
+            </span>
+            <Volume2 size={18} color="#22d3ee" />
+          </div>
+
+          <h1 style={{
+            fontSize: "clamp(2.5rem, 5vw, 3.5rem)",
+            fontWeight: "800",
+            lineHeight: "1.2",
+            marginBottom: "20px",
+            background: "linear-gradient(45deg, #1db954, #22d3ee, #9333ea)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}>
+            📖 Quran Surahs Collection
+          </h1>
+          
+          <p style={{
+            fontSize: "clamp(1.1rem, 2vw, 1.3rem)",
+            color: "#cbd5e1",
+            maxWidth: "800px",
+            margin: "0 auto 30px",
+            opacity: "0.9",
+            direction: "rtl",
+            fontFamily: "'Noto Naskh Arabic', serif",
+            lineHeight: "1.6",
+          }}>
+            سور القرآن الكريم - كاملة بصوت جميل
           </p>
 
-          {currentSurah?.id === surah.id && (
-            <div style={{ marginTop: 10 }}>
-              <audio
-                ref={audioRef}
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
-                onEnded={handleEnded}
-              >
-                <source src={surah.audio} type="audio/mp3" />
-              </audio>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsPlaying(!isPlaying);
-                }}
+          {/* Поиск и фильтры */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            style={{
+              maxWidth: "800px",
+              margin: "0 auto 40px",
+            }}
+          >
+            <div style={{
+              position: "relative",
+              marginBottom: "25px",
+            }}>
+              <Search 
                 style={{
-                  background: "#1db954",
-                  color: "white",
-                  padding: "8px 16px",
-                  border: "none",
-                  borderRadius: 5,
-                  cursor: "pointer",
-                  marginBottom: 10,
+                  position: "absolute",
+                  left: "20px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "#94a3b8",
                 }}
-              >
-                {isPlaying ? "⏸ Pause" : "▶️ Play"}
-              </button>
+                size={20}
+              />
+              <input
+                type="text"
+                placeholder="Search surahs by name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "18px 20px 18px 50px",
+                  background: "rgba(255, 255, 255, 0.05)",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  borderRadius: "16px",
+                  color: "#f1f5f9",
+                  fontSize: "16px",
+                  backdropFilter: "blur(10px)",
+                  transition: "all 0.3s ease",
+                }}
+                onFocus={(e) => {
+                  e.target.style.background = "rgba(255, 255, 255, 0.08)";
+                  e.target.style.borderColor = "rgba(29, 185, 84, 0.3)";
+                }}
+                onBlur={(e) => {
+                  e.target.style.background = "rgba(255, 255, 255, 0.05)";
+                  e.target.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                }}
+              />
+            </div>
 
+            {/* Категории */}
+            <div style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "10px",
+              justifyContent: "center",
+              background: "rgba(255, 255, 255, 0.03)",
+              padding: "15px",
+              borderRadius: "16px",
+              border: "1px solid rgba(255, 255, 255, 0.05)",
+            }}>
+              {surahCategories.map((category) => (
+                <motion.button
+                  key={category.id}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setActiveCategory(category.id)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: "12px 20px",
+                    background: activeCategory === category.id 
+                      ? "linear-gradient(135deg, #1db954, #16a34a)" 
+                      : "rgba(255, 255, 255, 0.05)",
+                    border: "1px solid",
+                    borderColor: activeCategory === category.id 
+                      ? "rgba(29, 185, 84, 0.3)" 
+                      : "rgba(255, 255, 255, 0.1)",
+                    borderRadius: "12px",
+                    color: activeCategory === category.id ? "#fff" : "#94a3b8",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "all 0.3s ease",
+                    backdropFilter: "blur(10px)",
+                  }}
+                >
+                  {category.icon}
+                  {category.name}
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Статистика */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: "25px",
+              marginTop: "30px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{
+              textAlign: "center",
+              padding: "15px 25px",
+              background: "rgba(255, 255, 255, 0.03)",
+              borderRadius: "16px",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              minWidth: "120px",
+            }}>
+              <div style={{
+                fontSize: "28px",
+                fontWeight: "700",
+                background: "linear-gradient(45deg, #1db954, #22d3ee)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}>
+                {surahs.length}
+              </div>
+              <div style={{
+                fontSize: "14px",
+                color: "#94a3b8",
+              }}>
+                Total Surahs
+              </div>
+            </div>
+            
+            <div style={{
+              textAlign: "center",
+              padding: "15px 25px",
+              background: "rgba(255, 255, 255, 0.03)",
+              borderRadius: "16px",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              minWidth: "120px",
+            }}>
+              <div style={{
+                fontSize: "28px",
+                fontWeight: "700",
+                background: "linear-gradient(45deg, #9333ea, #22d3ee)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}>
+                {filteredSurahs.length}
+              </div>
+              <div style={{
+                fontSize: "14px",
+                color: "#94a3b8",
+              }}>
+                Showing
+              </div>
+            </div>
+            
+            <div style={{
+              textAlign: "center",
+              padding: "15px 25px",
+              background: "rgba(255, 255, 255, 0.03)",
+              borderRadius: "16px",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              minWidth: "120px",
+            }}>
+              <div style={{
+                fontSize: "28px",
+                fontWeight: "700",
+                background: "linear-gradient(45deg, #f59e0b, #ef4444)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}>
+                114
+              </div>
+              <div style={{
+                fontSize: "14px",
+                color: "#94a3b8",
+              }}>
+                Chapters
+              </div>
+            </div>
+          </motion.div>
+        </motion.header>
+
+        {/* Аудио плеер */}
+        {currentSurah && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            style={{
+              background: "linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95))",
+              backdropFilter: "blur(20px)",
+              borderRadius: "24px",
+              padding: "30px",
+              marginBottom: "40px",
+              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.4)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            <audio
+              ref={audioRef}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+              onEnded={handleEnded}
+              style={{ display: "none" }}
+            >
+              <source src={currentSurah.audio} type="audio/mp3" />
+            </audio>
+
+            {/* Акцентная полоса */}
+            <div style={{
+              position: "absolute",
+              top: "0",
+              left: "0",
+              right: "0",
+              height: "4px",
+              background: "linear-gradient(90deg, #1db954, #22d3ee, #9333ea)",
+              borderTopLeftRadius: "24px",
+              borderTopRightRadius: "24px",
+            }} />
+
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "20px",
+              marginBottom: "25px",
+            }}>
+              <div style={{
+                width: "70px",
+                height: "70px",
+                background: "linear-gradient(135deg, #1db954, #16a34a)",
+                borderRadius: "16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "30px",
+                boxShadow: "0 10px 30px rgba(29, 185, 84, 0.3)",
+              }}>
+                📖
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{
+                  fontSize: "22px",
+                  fontWeight: "700",
+                  color: "#f8fafc",
+                  marginBottom: "5px",
+                }}>
+                  {currentSurah.name}
+                </h3>
+                <p style={{
+                  color: "#94a3b8",
+                  fontSize: "14px",
+                  margin: "0",
+                }}>
+                  {currentSurah.description}
+                </p>
+              </div>
+              <div style={{
+                fontSize: "14px",
+                fontWeight: "600",
+                color: "#1db954",
+                background: "rgba(29, 185, 84, 0.1)",
+                padding: "8px 16px",
+                borderRadius: "20px",
+                border: "1px solid rgba(29, 185, 84, 0.3)",
+              }}>
+                Surah {currentSurah.id}
+              </div>
+            </div>
+
+            {/* Прогресс бар */}
+            <div style={{ marginBottom: "20px" }}>
               <input
                 type="range"
-                min={0}
+                min="0"
                 max={duration}
                 value={progress}
                 onChange={handleSeek}
-                style={{ width: "100%" }}
-              />
-              <div
                 style={{
-                  fontSize: 13,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  color: "#aaa",
+                  width: "100%",
+                  height: "6px",
+                  background: "rgba(255, 255, 255, 0.1)",
+                  borderRadius: "3px",
+                  appearance: "none",
                 }}
-              >
+              />
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: "13px",
+                color: "#94a3b8",
+                marginTop: "8px",
+              }}>
                 <span>{formatTime(progress)}</span>
                 <span>{formatTime(duration)}</span>
               </div>
             </div>
-          )}
-        </div>
-      ))}
+
+            {/* Управление */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "15px",
+              }}>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setIsShuffle(!isShuffle)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: isShuffle ? "#1db954" : "#94a3b8",
+                    cursor: "pointer",
+                    fontSize: "20px",
+                  }}
+                >
+                  <Shuffle size={20} />
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={playPrevSurah}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#f1f5f9",
+                    cursor: "pointer",
+                    fontSize: "24px",
+                  }}
+                >
+                  <SkipBack size={24} />
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  style={{
+                    width: "56px",
+                    height: "56px",
+                    background: "linear-gradient(135deg, #1db954, #16a34a)",
+                    border: "none",
+                    borderRadius: "50%",
+                    color: "#fff",
+                    cursor: "pointer",
+                    fontSize: "24px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 10px 25px rgba(29, 185, 84, 0.3)",
+                  }}
+                >
+                  {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={playNextSurah}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#f1f5f9",
+                    cursor: "pointer",
+                    fontSize: "24px",
+                  }}
+                >
+                  <SkipForward size={24} />
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setIsRepeat(!isRepeat)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: isRepeat ? "#1db954" : "#94a3b8",
+                    cursor: "pointer",
+                    fontSize: "20px",
+                  }}
+                >
+                  <Repeat size={20} />
+                </motion.button>
+              </div>
+
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "15px",
+                width: "200px",
+              }}>
+                <Volume2 size={18} color="#94a3b8" />
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={volume}
+                  onChange={handleVolumeChange}
+                  style={{
+                    flex: 1,
+                    height: "4px",
+                    background: "rgba(255, 255, 255, 0.1)",
+                    borderRadius: "2px",
+                    appearance: "none",
+                  }}
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Список сур */}
+        <AnimatePresence>
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            key={activeCategory + searchQuery}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+              gap: "20px",
+              padding: "20px",
+            }}
+          >
+            {filteredSurahs.length > 0 ? (
+              filteredSurahs.map((surah, index) => (
+                <motion.div
+                  key={surah.id}
+                  variants={itemVariants}
+                  whileHover="hover"
+                  onClick={() => handleSelect(surah)}
+                  style={{
+                    background: currentSurah?.id === surah.id 
+                      ? "linear-gradient(145deg, rgba(29, 185, 84, 0.2), rgba(22, 163, 74, 0.3))" 
+                      : "linear-gradient(145deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9))",
+                    backdropFilter: "blur(12px)",
+                    borderRadius: "20px",
+                    padding: "24px",
+                    boxShadow: currentSurah?.id === surah.id
+                      ? "0 15px 35px rgba(29, 185, 84, 0.25)"
+                      : "0 8px 25px rgba(0, 0, 0, 0.25)",
+                    border: currentSurah?.id === surah.id
+                      ? "1px solid rgba(29, 185, 84, 0.4)"
+                      : "1px solid rgba(255, 255, 255, 0.1)",
+                    position: "relative",
+                    overflow: "hidden",
+                    cursor: "pointer",
+                    transition: "all 0.3s ease",
+                  }}
+                >
+                  {/* Номер суры */}
+                  <div style={{
+                    position: "absolute",
+                    top: "20px",
+                    right: "20px",
+                    width: "40px",
+                    height: "40px",
+                    background: currentSurah?.id === surah.id
+                      ? "rgba(255, 255, 255, 0.2)"
+                      : "rgba(255, 255, 255, 0.05)",
+                    borderRadius: "12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "14px",
+                    fontWeight: "700",
+                    color: currentSurah?.id === surah.id ? "#fff" : "#94a3b8",
+                    border: currentSurah?.id === surah.id
+                      ? "1px solid rgba(255, 255, 255, 0.3)"
+                      : "1px solid rgba(255, 255, 255, 0.1)",
+                  }}>
+                    {surah.id}
+                  </div>
+
+                  {/* Иконка */}
+                  <div style={{
+                    width: "50px",
+                    height: "50px",
+                    background: currentSurah?.id === surah.id
+                      ? "rgba(255, 255, 255, 0.2)"
+                      : "rgba(255, 255, 255, 0.05)",
+                    borderRadius: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "24px",
+                    marginBottom: "20px",
+                    border: currentSurah?.id === surah.id
+                      ? "1px solid rgba(255, 255, 255, 0.3)"
+                      : "1px solid rgba(255, 255, 255, 0.1)",
+                  }}>
+                    {currentSurah?.id === surah.id && isPlaying ? "🎵" : "📖"}
+                  </div>
+
+                  {/* Название */}
+                  <h3 style={{
+                    fontSize: "20px",
+                    fontWeight: "700",
+                    color: currentSurah?.id === surah.id ? "#fff" : "#f8fafc",
+                    marginBottom: "12px",
+                    paddingRight: "50px",
+                  }}>
+                    {surah.name}
+                  </h3>
+
+                  {/* Описание */}
+                  <p style={{
+                    color: currentSurah?.id === surah.id ? "#d1fae5" : "#94a3b8",
+                    fontSize: "14px",
+                    lineHeight: "1.5",
+                    marginBottom: "20px",
+                  }}>
+                    {surah.description}
+                  </p>
+
+                  {/* Кнопка воспроизведения */}
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingTop: "16px",
+                    borderTop: "1px solid",
+                    borderTopColor: currentSurah?.id === surah.id
+                      ? "rgba(255, 255, 255, 0.2)"
+                      : "rgba(255, 255, 255, 0.1)",
+                  }}>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelect(surah);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "10px 20px",
+                        background: currentSurah?.id === surah.id && isPlaying
+                          ? "rgba(255, 255, 255, 0.2)"
+                          : "rgba(29, 185, 84, 0.1)",
+                        border: "1px solid",
+                        borderColor: currentSurah?.id === surah.id && isPlaying
+                          ? "rgba(255, 255, 255, 0.3)"
+                          : "rgba(29, 185, 84, 0.3)",
+                        borderRadius: "10px",
+                        color: currentSurah?.id === surah.id && isPlaying ? "#fff" : "#1db954",
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
+                      }}
+                    >
+                      {currentSurah?.id === surah.id && isPlaying ? (
+                        <>
+                          <Pause size={16} />
+                          Pause
+                        </>
+                      ) : (
+                        <>
+                          <Play size={16} />
+                          Play
+                        </>
+                      )}
+                    </motion.button>
+
+                    <ChevronRight 
+                      size={18} 
+                      color={currentSurah?.id === surah.id ? "#fff" : "#94a3b8"} 
+                    />
+                  </div>
+                </motion.div>
+              ))
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                style={{
+                  gridColumn: "1 / -1",
+                  textAlign: "center",
+                  padding: "80px 20px",
+                }}
+              >
+                <div style={{
+                  fontSize: "60px",
+                  marginBottom: "20px",
+                  opacity: "0.3",
+                }}>
+                  📖
+                </div>
+                <h3 style={{
+                  fontSize: "24px",
+                  color: "#94a3b8",
+                  marginBottom: "10px",
+                }}>
+                  No surahs found
+                </h3>
+                <p style={{
+                  color: "#64748b",
+                }}>
+                  Try adjusting your search or filter criteria
+                </p>
+              </motion.div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Футер */}
+        <motion.footer
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.5 }}
+          style={{
+            marginTop: "80px",
+            textAlign: "center",
+            padding: "40px 20px",
+          }}
+        >
+          <div style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "16px",
+            padding: "20px 40px",
+            background: "rgba(255, 255, 255, 0.03)",
+            backdropFilter: "blur(10px)",
+            borderRadius: "50px",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            marginBottom: "20px",
+          }}>
+            <span style={{
+              fontSize: "15px",
+              fontWeight: "500",
+              color: "#94a3b8",
+              letterSpacing: "0.5px",
+            }}>
+              © 2008-2025 Meda Islamic App • Quran Audio
+            </span>
+            <div style={{
+              width: "5px",
+              height: "5px",
+              background: "#1db954",
+              borderRadius: "50%",
+            }} />
+            <span style={{
+              fontSize: "14px",
+              fontWeight: "600",
+              color: "#22d3ee",
+            }}>
+              {surahs.length} Blessed Recitations
+            </span>
+          </div>
+          
+          <p style={{
+            marginTop: "20px",
+            fontSize: "14px",
+            color: "#64748b",
+            maxWidth: "600px",
+            margin: "20px auto 0",
+            lineHeight: "1.6",
+          }}>
+            May Allah bless all those who recite and listen to the Holy Quran with sincerity and devotion.
+          </p>
+        </motion.footer>
+      </div>
+
+      {/* CSS анимации */}
+      <style jsx>{`
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.5;
+            transform: scale(0.95);
+          }
+        }
+        
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        
+        input:focus {
+          outline: none;
+        }
+        
+        /* Кастомный скроллбар */
+        ::-webkit-scrollbar {
+          width: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+          background: rgba(15, 23, 42, 0.8);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+          background: linear-gradient(45deg, #1db954, #22d3ee, #9333ea);
+          border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(45deg, #16a34a, #0ea5e9, #7c3aed);
+        }
+        
+        /* Стили для input range */
+        input[type="range"] {
+          -webkit-appearance: none;
+          appearance: none;
+          height: 6px;
+          border-radius: 3px;
+          background: rgba(255, 255, 255, 0.1);
+          outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #1db954;
+          cursor: pointer;
+          border: 2px solid rgba(255, 255, 255, 0.2);
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #1db954;
+          cursor: pointer;
+          border: 2px solid rgba(255, 255, 255, 0.2);
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+      `}</style>
     </div>
   );
 }
-
